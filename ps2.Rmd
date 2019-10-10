@@ -50,12 +50,12 @@ colnames(d)
 And see if you can figure out what range the likert scores are in. What's the highest number on the likert scale, and what's the lowest? (Hint, `d$Game1Angry1` is one of the likert rating columns, and you may want to use `unique` or `range` or `hist`)
 
 ```{r}
-## your code here
+range(d$Game1Angry1, na.rm = TRUE)
 
 ```
 
-Highest number: [Your answer here]
-Lowest number: [Your answer here]
+Highest number: 7
+Lowest number: 1
 
 # cleaning up a bit
 
@@ -81,7 +81,9 @@ The researchers have made a column called `DoNotUse` based on their exlusion cri
 
 ```{r}
 filtered_d = d %>% 
-  filter(   ) # your code here: exclude subjects that are marked as "DoNotUse"
+  filter(is.na(DoNotUse) == TRUE) # your code here: exclude subjects that are marked as "DoNotUse"
+
+filtered_d
 ```
 
 It's good practice to assign a new variable name (in this case `filtered_d`) to a data frame when you change it in an important way, or apply a code chunk that shouldn't be run twice. This helps prevent you seeing different results when you run your code in chunks (and might run one multiple times, or skip it, etc.) vs. knit the document.
@@ -118,7 +120,7 @@ Now you try! Fill in the selection criteria to get rid of the "Game" columns, wh
 
 ```{r}
 performance_hyp_d = filtered_d %>% 
-  select( ) # your code here: remove the columns containing "Game" in the name
+  select(-contains("Game")) # your code here: remove the columns containing "Game" in the name
 ```
 
 # Converting to long form
@@ -153,7 +155,7 @@ And you can convert the rating dataset! (Call the "Key" column "Measurement" and
 
 ```{r}
 rating_hyp_long_d = rating_hyp_d %>%
-  ## your code here
+  pivot_longer(cols = "Game1Angry1":"Game4Neutral3", names_to = "Measurement", values_to = "Rating")
 ```
 
 # Splitting columns
@@ -165,6 +167,7 @@ performance_hyp_long_d = performance_hyp_long_d %>%
   mutate(ConfrontationalGame = grepl("SOF", Measurement), # create a new variable that will say whether the measurement was of the game soldier of fortune (SOF).
          WithMusic = !grepl("NoMusic|WithoutMusic", Measurement), # creates a new column named WithMusic, which is False if the measurement contains *either* "NoMusic" or "WithoutMusic"
          MusicCondition = factor(ifelse(Cond > 3, Cond-3, Cond), levels = 1:3, labels = c("Anger", "Exciting", "Neutral"))) # Get rid of uninterpretable condition labels
+performance_hyp_long_d
 
 ```
 
@@ -173,7 +176,7 @@ Now you can help! For the rating dataset, write a test on a measurement name, us
 ```{r}
 rating_hyp_long_d = rating_hyp_long_d %>%
   mutate(
-    IsRecall = ,## Your code here
+    IsRecall = grepl("Friends|Strangers", Measurement)
   )
 ```
 
@@ -221,7 +224,8 @@ The rating hypothesis analysis also requires some grouped manipulation: the expe
 
 ```{r}
 rating_summary_d = rating_hyp_long_d %>% 
-  ## your code here
+  group_by(Emotion, ConfrontationalGame) %>%
+  summarize(MeanRating = mean(Rating, na.rm=T))
 ```
 
 Let's take a look at the result:
@@ -272,8 +276,11 @@ If you don't understand every step of that code (or any other `dplyr` code), it 
 Now we're finally to reproduce Fig. 2 from Tamir et al., we just need to get the mean differences within each game and each kind of music, and save them to a variable called `MeanImprovementScore`:
 
 ```{r}
+library(plotrix)
 performance_diff_summary_d = performance_diff_d %>%
-  ## Your code here
+  group_by(ConfrontationalGame, MusicCondition) %>%
+  summarize(MeanImprovementScore = mean(ImprovementScore, na.rm=T),
+            sem_ImprovementScore = std.error(ImprovementScore, na.rm = T))
 ```
 
 Let's take a look at your result (if it has `NA` values, how can you fix it?):
@@ -285,12 +292,23 @@ performance_diff_summary_d
 and plot it!
 
 ```{r TamirFig2}
+#original
 ggplot(performance_diff_summary_d, aes(x=ConfrontationalGame, y=MeanImprovementScore, fill=MusicCondition)) +
   geom_bar(position="dodge", stat="identity") + 
   scale_fill_brewer(palette="Set1")
 ```
 
+```{r}
+#with error bars
+ggplot(performance_diff_summary_d, aes(x=ConfrontationalGame, y=MeanImprovementScore, fill=MusicCondition)) +
+  geom_bar(position="dodge", stat="identity") + 
+  scale_fill_brewer(palette="Set1") +
+  geom_errorbar(aes(ymin = (MeanImprovementScore - sem_ImprovementScore), ymax = (MeanImprovementScore + sem_ImprovementScore)), position = "dodge")
+```
+
+
 (Bonus: also calculate the SEM in the summary data, and then add errorbars to the plot with `geom_errorbar`!)
+
 
 Not quite as exact a replication of the effect as Fig. 1. This concurs with the [replication report](https://osf.io/7i2tf/), which says that the hypothesis 1 effect replicated, but hypothesis 2 did not. Here's a model just for thoroughness (again, don't worry too much about it):
 
